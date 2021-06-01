@@ -30,7 +30,7 @@ This example uses [`XLSX.utils.aoa_to_sheet`](#array-of-arrays-input) to make a
 sheet and `XLSX.utils.book_append_sheet` to append the sheet to the workbook:
 
 ```js
-var new_ws_name = "SheetJS";
+var ws_name = "SheetJS";
 
 /* make worksheet */
 var ws_data = [
@@ -67,7 +67,7 @@ error if the workbook is empty.
 
 - <http://sheetjs.com/demos/modify.html> read + modify + write files
 
-- <https://github.com/SheetJS/js-xlsx/blob/master/bin/xlsx.njs> node
+- <https://github.com/SheetJS/js-xlsx/blob/HEAD/bin/xlsx.njs> node
 
 The node version installs a command line tool `xlsx` which can read spreadsheet
 files and output the contents in various formats.  The source is available at

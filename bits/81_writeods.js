@@ -33,7 +33,7 @@ var write_content_ods/*:{(wb:any, opts:any):string}*/ = (function() {
 	var write_ws = function(ws, wb/*:Workbook*/, i/*:number*//*::, opts*/)/*:string*/ {
 		/* Section 9 Tables */
 		var o/*:Array<string>*/ = [];
-		o.push('      <table:table table:name="' + escapexml(wb.SheetNames[i]) + '">\n');
+		o.push('      <table:table table:name="' + escapexml(wb.SheetNames[i]) + '" table:style-name="ta1">\n');
 		var R=0,C=0, range = decode_range(ws['!ref']);
 		var marr/*:Array<Range>*/ = ws['!merges'] || [], mi = 0;
 		var dense = Array.isArray(ws);
@@ -78,7 +78,7 @@ var write_content_ods/*:{(wb:any, opts:any):string}*/ = (function() {
 						ct['office:value'] = (cell.v||0);
 						break;
 					case 's': case 'str':
-						textp = cell.v;
+						textp = cell.v == null ? "" : cell.v;
 						ct['office:value-type'] = "string";
 						break;
 					case 'd':
@@ -105,6 +105,7 @@ var write_content_ods/*:{(wb:any, opts:any):string}*/ = (function() {
 
 	var write_automatic_styles_ods = function(o/*:Array<string>*/) {
 		o.push(' <office:automatic-styles>\n');
+
 		o.push('  <number:date-style style:name="N37" number:automatic-order="true">\n');
 		o.push('   <number:month number:style="long"/>\n');
 		o.push('   <number:text>/</number:text>\n');
@@ -112,7 +113,17 @@ var write_content_ods/*:{(wb:any, opts:any):string}*/ = (function() {
 		o.push('   <number:text>/</number:text>\n');
 		o.push('   <number:year/>\n');
 		o.push('  </number:date-style>\n');
+
+		/* table */
+		o.push('  <style:style style:name="ta1" style:family="table">\n'); // style:master-page-name="mp1">\n');
+		o.push('   <style:table-properties table:display="true" style:writing-mode="lr-tb"/>\n');
+		o.push('  </style:style>\n');
+
+		/* table cells, text */
 		o.push('  <style:style style:name="ce1" style:family="table-cell" style:parent-style-name="Default" style:data-style-name="N37"/>\n');
+
+		/* page-layout */
+
 		o.push(' </office:automatic-styles>\n');
 	};
 
@@ -182,7 +193,7 @@ function write_ods(wb/*:any*/, opts/*:any*/) {
 	if(opts.bookType == "fods") return write_content_ods(wb, opts);
 
 	/*:: if(!jszip) throw new Error("JSZip is not available"); */
-	var zip = new jszip();
+	var zip = zip_new();
 	var f = "";
 
 	var manifest/*:Array<Array<string> >*/ = [];
@@ -190,34 +201,34 @@ function write_ods(wb/*:any*/, opts/*:any*/) {
 
 	/* Part 3 Section 3.3 MIME Media Type */
 	f = "mimetype";
-	zip.file(f, "application/vnd.oasis.opendocument.spreadsheet");
+	zip_add_file(zip, f, "application/vnd.oasis.opendocument.spreadsheet");
 
 	/* Part 1 Section 2.2 Documents */
 	f = "content.xml";
-	zip.file(f, write_content_ods(wb, opts));
+	zip_add_file(zip, f, write_content_ods(wb, opts));
 	manifest.push([f, "text/xml"]);
 	rdf.push([f, "ContentFile"]);
 
 	/* TODO: these are hard-coded styles to satiate excel */
 	f = "styles.xml";
-	zip.file(f, write_styles_ods(wb, opts));
+	zip_add_file(zip, f, write_styles_ods(wb, opts));
 	manifest.push([f, "text/xml"]);
 	rdf.push([f, "StylesFile"]);
 
 	/* TODO: this is hard-coded to satiate excel */
 	f = "meta.xml";
-	zip.file(f, write_meta_ods(/*::wb, opts*/));
+	zip_add_file(zip, f, write_meta_ods(/*::wb, opts*/));
 	manifest.push([f, "text/xml"]);
 	rdf.push([f, "MetadataFile"]);
 
 	/* Part 3 Section 6 Metadata Manifest File */
 	f = "manifest.rdf";
-	zip.file(f, write_rdf(rdf/*, opts*/));
+	zip_add_file(zip, f, write_rdf(rdf/*, opts*/));
 	manifest.push([f, "application/rdf+xml"]);
 
 	/* Part 3 Section 4 Manifest File */
 	f = "META-INF/manifest.xml";
-	zip.file(f, write_manifest(manifest/*, opts*/));
+	zip_add_file(zip, f, write_manifest(manifest/*, opts*/));
 
 	return zip;
 }

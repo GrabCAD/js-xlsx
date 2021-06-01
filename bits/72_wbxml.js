@@ -2,7 +2,7 @@
 var wbnsregex = /<\w+:workbook/;
 function parse_wb_xml(data, opts)/*:WorkbookFile*/ {
 	if(!data) throw new Error("Could not find file");
-	var wb = { AppVersion:{}, WBProps:{}, WBView:[], Sheets:[], CalcPr:{}, Names:[], xmlns: "" };
+	var wb = /*::(*/{ AppVersion:{}, WBProps:{}, WBView:[], Sheets:[], CalcPr:{}, Names:[], xmlns: "" }/*::)*/;
 	var pass = false, xmlns = "xmlns";
 	var dname = {}, dnstart = 0;
 	data.replace(tagregex, function xml_wb(x, idx) {
@@ -22,7 +22,9 @@ function parse_wb_xml(data, opts)/*:WorkbookFile*/ {
 			case '<fileVersion/>': case '</fileVersion>': break;
 
 			/* 18.2.12 fileSharing CT_FileSharing ? */
-			case '<fileSharing': case '<fileSharing/>': break;
+			case '<fileSharing':
+				break;
+			case '<fileSharing/>': break;
 
 			/* 18.2.28 workbookPr CT_WorkbookPr ? */
 			case '<workbookPr':
@@ -35,12 +37,13 @@ function parse_wb_xml(data, opts)/*:WorkbookFile*/ {
 						default: wb.WBProps[w[0]] = y[w[0]];
 					}
 				});
-				if(y.codeName) wb.WBProps.CodeName = y.codeName;
+				if(y.codeName) wb.WBProps.CodeName = utf8read(y.codeName);
 				break;
 			case '</workbookPr>': break;
 
 			/* 18.2.29 workbookProtection CT_WorkbookProtection ? */
-			case '<workbookProtection': break;
+			case '<workbookProtection':
+				break;
 			case '<workbookProtection/>': break;
 
 			/* 18.2.1  bookViews CT_BookViews ? */
@@ -83,6 +86,7 @@ function parse_wb_xml(data, opts)/*:WorkbookFile*/ {
 				dname.Name = utf8read(y.name);
 				if(y.comment) dname.Comment = y.comment;
 				if(y.localSheetId) dname.Sheet = +y.localSheetId;
+				if(parsexmlbool(y.hidden||"0")) dname.Hidden = true;
 				dnstart = idx + x.length;
 			}	break;
 			case '</definedName>': {
@@ -101,7 +105,7 @@ function parse_wb_xml(data, opts)/*:WorkbookFile*/ {
 
 			/* 18.2.4  customWorkbookViews CT_CustomWorkbookViews ? */
 			case '<customWorkbookViews>': case '</customWorkbookViews>': case '<customWorkbookViews': break;
-			/* 18.2.3    customWorkbookView CT_CustomWorkbookView + */
+			/* 18.2.3  customWorkbookView CT_CustomWorkbookView + */
 			case '<customWorkbookView': case '</customWorkbookView>': break;
 
 			/* 18.2.18 pivotCaches CT_PivotCaches ? */
@@ -114,7 +118,7 @@ function parse_wb_xml(data, opts)/*:WorkbookFile*/ {
 
 			/* 18.2.23 smartTagTypes CT_SmartTagTypes ? */
 			case '<smartTagTypes': case '<smartTagTypes>': case '</smartTagTypes>': break;
-			/* 18.2.22   smartTagType CT_SmartTagType ? */
+			/* 18.2.22 smartTagType CT_SmartTagType ? */
 			case '<smartTagType': break;
 
 			/* 18.2.24 webPublishing CT_WebPublishing ? */
@@ -130,7 +134,7 @@ function parse_wb_xml(data, opts)/*:WorkbookFile*/ {
 
 			/* 18.2.10 extLst CT_ExtensionList ? */
 			case '<extLst': case '<extLst>': case '</extLst>': case '<extLst/>': break;
-			/* 18.2.7    ext CT_Extension + */
+			/* 18.2.7  ext CT_Extension + */
 			case '<ext': pass=true; break; //TODO: check with versions of excel
 			case '</ext>': pass=false; break;
 
@@ -184,11 +188,24 @@ function write_wb_xml(wb/*:Workbook*//*::, opts:?WriteOpts*/)/*:string*/ {
 	o[o.length] = (writextag('workbookPr', null, workbookPr));
 
 	/* workbookProtection */
-	/* bookViews */
+
+	var sheets = wb.Workbook && wb.Workbook.Sheets || [];
+	var i = 0;
+
+	/* bookViews only written if first worksheet is hidden */
+	if(sheets && sheets[0] && !!sheets[0].Hidden) {
+		o[o.length] = "<bookViews>";
+		for(i = 0; i != wb.SheetNames.length; ++i) {
+			if(!sheets[i]) break;
+			if(!sheets[i].Hidden) break;
+		}
+		if(i == wb.SheetNames.length) i = 0;
+		o[o.length] = '<workbookView firstSheet="' + i + '" activeTab="' + i + '"/>';
+		o[o.length] = "</bookViews>";
+	}
 
 	o[o.length] = "<sheets>";
-	var sheets = wb.Workbook && wb.Workbook.Sheets || [];
-	for(var i = 0; i != wb.SheetNames.length; ++i) {
+	for(i = 0; i != wb.SheetNames.length; ++i) {
 		var sht = ({name:escapexml(wb.SheetNames[i].slice(0,31))}/*:any*/);
 		sht.sheetId = ""+(i+1);
 		sht["r:id"] = "rId"+(i+1);
@@ -209,8 +226,9 @@ function write_wb_xml(wb/*:Workbook*//*::, opts:?WriteOpts*/)/*:string*/ {
 			var d/*:any*/ = {name:n.Name};
 			if(n.Comment) d.comment = n.Comment;
 			if(n.Sheet != null) d.localSheetId = ""+n.Sheet;
+			if(n.Hidden) d.hidden = "1";
 			if(!n.Ref) return;
-			o[o.length] = writextag('definedName', String(n.Ref), d);
+			o[o.length] = writextag('definedName', escapexml(n.Ref), d);
 		});
 		o[o.length] = "</definedNames>";
 	}

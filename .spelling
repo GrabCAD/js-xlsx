@@ -93,12 +93,17 @@ runtime
 serverless
 submodule
 transpiled
+node.js
+commonjs
+async
+uncheck
 
  - demos/altjs/README.md
 ChakraCore
 Duktape
 Goja
 Nashorn
+QuickJS
 
  - demos/angular/README.md
 AngularJS
@@ -145,6 +150,9 @@ Preact
 
  - demos/server/README.md
 hapi
+
+ - demos/showcase/README.md
+vscode-data-preview
 
  - demos/xhr/README.md
 axios

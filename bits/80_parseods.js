@@ -1,16 +1,17 @@
 /* OpenDocument */
 var parse_content_xml = (function() {
 
-	/* 6.1.2 White Space Characters */
-	var parse_text_p = function(text/*:string*//*::, tag*/)/*:string*/ {
-		return unescapexml(text
+	var parse_text_p = function(text/*:string*//*::, tag*/)/*:Array<any>*/ {
+		/* 6.1.2 White Space Characters */
+		var fixed = text
 			.replace(/[\t\r\n]/g, " ").trim().replace(/ +/g, " ")
 			.replace(/<text:s\/>/g," ")
 			.replace(/<text:s text:c="(\d+)"\/>/g, function($$,$1) { return Array(parseInt($1,10)+1).join(" "); })
 			.replace(/<text:tab[^>]*\/>/g,"\t")
-			.replace(/<text:line-break\/>/g,"\n")
-			.replace(/<[^>]*>/g,"")
-		);
+			.replace(/<text:line-break\/>/g,"\n");
+		var v = unescapexml(fixed.replace(/<[^>]*>/g,""));
+
+		return [v];
 	};
 
 	var number_formats = {
@@ -42,6 +43,7 @@ var parse_content_xml = (function() {
 		var Rn, q/*:: :any = ({t:"", v:null, z:null, w:"",c:[],}:any)*/;
 		var ctag = ({value:""}/*:any*/);
 		var textp = "", textpidx = 0, textptag/*:: = {}*/;
+		var textR = [];
 		var R = -1, C = -1, range = {s: {r:1000000,c:10000000}, e: {r:0, c:0}};
 		var row_ol = 0;
 		var number_format_map = {};
@@ -62,6 +64,7 @@ var parse_content_xml = (function() {
 			case 'table': case '工作表': // 9.1.2 <table:table>
 				if(Rn[1]==='/') {
 					if(range.e.c >= range.s.c && range.e.r >= range.s.r) ws['!ref'] = encode_range(range);
+					else ws['!ref'] = "A1:A1";
 					if(opts.sheetRows > 0 && opts.sheetRows <= range.e.r) {
 						ws['!fullref'] = ws['!ref'];
 						range.e.r = opts.sheetRows - 1;
@@ -97,11 +100,12 @@ var parse_content_xml = (function() {
 				if(rowpeat < 10) for(i = 0; i < rowpeat; ++i) if(row_ol > 0) rowinfo[R + i] = {level: row_ol};
 				C = -1; break;
 			case 'covered-table-cell': // 9.1.5 <table:covered-table-cell>
-				++C;
+				if(Rn[1] !== '/') ++C;
 				if(opts.sheetStubs) {
 					if(opts.dense) { if(!ws[R]) ws[R] = []; ws[R][C] = {t:'z'}; }
 					else ws[encode_cell({r:R,c:C})] = {t:'z'};
 				}
+				textp = ""; textR = [];
 				break; /* stub */
 			case 'table-cell': case '数据':
 				if(Rn[0].charAt(Rn[0].length-2) === '/') {
@@ -170,18 +174,20 @@ var parse_content_xml = (function() {
 						default:
 							if(q.t === 'string' || q.t === 'text' || !q.t) {
 								q.t = 's';
-								if(ctag['string-value'] != null) textp = unescapexml(ctag['string-value']);
+								if(ctag['string-value'] != null) { textp = unescapexml(ctag['string-value']); textR = []; }
 							} else throw new Error('Unsupported value type ' + q.t);
 					}
 				} else {
 					isstub = false;
 					if(q.t === 's') {
 						q.v = textp || '';
+						if(textR.length) q.R = textR;
 						isstub = textpidx == 0;
 					}
 					if(atag.Target) q.l = atag;
 					if(comments.length > 0) { q.c = comments; comments = []; }
 					if(textp && opts.cellText !== false) q.w = textp;
+					if(isstub) { q.t = "z"; delete q.v; }
 					if(!isstub || opts.sheetStubs) {
 						if(!(opts.sheetRows && opts.sheetRows <= R)) {
 							for(var rpt = 0; rpt < rowpeat; ++rpt) {
@@ -201,7 +207,7 @@ var parse_content_xml = (function() {
 					colpeat = parseInt(ctag['number-columns-repeated']||"1", 10);
 					C += colpeat-1; colpeat = 0;
 					q = {/*:: t:"", v:null, z:null, w:"",c:[]*/};
-					textp = "";
+					textp = ""; textR = [];
 				}
 				atag = ({}/*:any*/);
 				break; // 9.1.4 <table:table-cell>
@@ -213,6 +219,7 @@ var parse_content_xml = (function() {
 			case 'scripts': // 3.12 <office:scripts>
 			case 'styles': // TODO <office:styles>
 			case 'font-face-decls': // 3.14 <office:font-face-decls>
+			case 'master-styles': //3.15.4 <office:master-styles> -- relevant for FODS
 				if(Rn[1]==='/'){if((tmp=state.pop())[0]!==Rn[3]) throw "Bad state: "+tmp;}
 				else if(Rn[0].charAt(Rn[0].length-2) !== '/') state.push([Rn[3], true]);
 				break;
@@ -221,12 +228,13 @@ var parse_content_xml = (function() {
 				if(Rn[1]==='/'){
 					if((tmp=state.pop())[0]!==Rn[3]) throw "Bad state: "+tmp;
 					comment.t = textp;
+					if(textR.length) /*::(*/comment/*:: :any)*/.R = textR;
 					comment.a = creator;
 					comments.push(comment);
 				}
 				else if(Rn[0].charAt(Rn[0].length-2) !== '/') {state.push([Rn[3], false]);}
 				creator = ""; creatoridx = 0;
-				textp = ""; textpidx = 0;
+				textp = ""; textpidx = 0; textR = [];
 				break;
 
 			case 'creator': // 4.3.2.7 <dc:creator>
@@ -253,7 +261,7 @@ var parse_content_xml = (function() {
 			case 'chart': // TODO
 				if(Rn[1]==='/'){if((tmp=state.pop())[0]!==Rn[3]) throw "Bad state: "+tmp;}
 				else if(Rn[0].charAt(Rn[0].length-2) !== '/') state.push([Rn[3], false]);
-				textp = ""; textpidx = 0;
+				textp = ""; textpidx = 0; textR = [];
 				break;
 
 			case 'scientific-number': // TODO: <number:scientific-number>
@@ -278,11 +286,11 @@ var parse_content_xml = (function() {
 			case 'script': break; // 3.13 <office:script>
 			case 'libraries': break; // TODO: <ooo:libraries>
 			case 'automatic-styles': break; // 3.15.3 <office:automatic-styles>
-			case 'master-styles': break; // TODO: <office:master-styles>
 
 			case 'default-style': // TODO: <style:default-style>
 			case 'page-layout': break; // TODO: <style:page-layout>
-			case 'style': break; // 16.2 <style:style>
+			case 'style': // 16.2 <style:style>
+				break;
 			case 'map': break; // 16.3 <style:map>
 			case 'font-face': break; // 16.21 <style:font-face>
 
@@ -374,8 +382,11 @@ var parse_content_xml = (function() {
 			case 'line-break': break; // 6.1.5 <text:line-break>
 			case 'span': break; // 6.1.7 <text:span>
 			case 'p': case '文本串': // 5.1.3 <text:p>
-				if(Rn[1]==='/' && (!ctag || !ctag['string-value'])) textp = (textp.length > 0 ? textp + "\n" : "") + parse_text_p(str.slice(textpidx,Rn.index), textptag);
-				else { textptag = parsexmltag(Rn[0], false); textpidx = Rn.index + Rn[0].length; }
+				if(['master-styles'].indexOf(state[state.length-1][0]) > -1) break;
+				if(Rn[1]==='/' && (!ctag || !ctag['string-value'])) {
+					var ptp = parse_text_p(str.slice(textpidx,Rn.index), textptag);
+					textp = (textp.length > 0 ? textp + "\n" : "") + ptp[0];
+				} else { textptag = parsexmltag(Rn[0], false); textpidx = Rn.index + Rn[0].length; }
 				break; // <text:p>
 			case 's': break; // <text:s>
 
@@ -536,7 +547,7 @@ var parse_content_xml = (function() {
 			SheetNames: SheetNames,
 			Workbook: WB
 		}/*:any*/);
-		if(opts.bookSheets) delete out.Sheets;
+		if(opts.bookSheets) delete /*::(*/out/*:: :any)*/.Sheets;
 		return out;
 	};
 })();

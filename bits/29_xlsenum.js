@@ -101,7 +101,7 @@ var SpecialProperties = {
 };
 
 (function() {
-	for(var y in SpecialProperties) if(SpecialProperties.hasOwnProperty(y))
+	for(var y in SpecialProperties) if(Object.prototype.hasOwnProperty.call(SpecialProperties, y))
 	DocSummaryPIDDSI[y] = SummaryPIDSI[y] = SpecialProperties[y];
 })();
 
@@ -185,11 +185,11 @@ var XLSFillPattern = [
 	'gray0625'
 ];
 
-function rgbify(arr) { return arr.map(function(x) { return [(x>>16)&255,(x>>8)&255,x&255]; }); }
+function rgbify(arr/*:Array<number>*/)/*:Array<[number, number, number]>*/ { return arr.map(function(x) { return [(x>>16)&255,(x>>8)&255,x&255]; }); }
 
 /* [MS-XLS] 2.5.161 */
 /* [MS-XLSB] 2.5.75 Icv */
-var XLSIcv = rgbify([
+var _XLSIcv = rgbify([
 	/* Color Constants */
 	0x000000,
 	0xFFFFFF,
@@ -281,4 +281,18 @@ var XLSIcv = rgbify([
 	0x000000, /* 0x50 icvInfoBk ?? */
 	0x000000 /* 0x51 icvInfoText ?? */
 ]);
+var XLSIcv = dup(_XLSIcv);
 
+/* [MS-XLSB] 2.5.97.2 */
+var BErr = {
+	/*::[*/0x00/*::]*/: "#NULL!",
+	/*::[*/0x07/*::]*/: "#DIV/0!",
+	/*::[*/0x0F/*::]*/: "#VALUE!",
+	/*::[*/0x17/*::]*/: "#REF!",
+	/*::[*/0x1D/*::]*/: "#NAME?",
+	/*::[*/0x24/*::]*/: "#NUM!",
+	/*::[*/0x2A/*::]*/: "#N/A",
+	/*::[*/0x2B/*::]*/: "#GETTING_DATA",
+	/*::[*/0xFF/*::]*/: "#WTF?"
+};
+var RBErr = evert_num(BErr);

@@ -7,25 +7,32 @@ AUXTARGETS=
 CMDS=bin/xlsx.njs
 HTMLLINT=index.html
 
+MINITGT=xlsx.mini.js
+MINIFLOW=xlsx.mini.flow.js
+MINIDEPS=$(shell cat mini.lst)
+
 ULIB=$(shell echo $(LIB) | tr a-z A-Z)
 DEPS=$(sort $(wildcard bits/*.js))
 TARGET=$(LIB).js
 FLOWTARGET=$(LIB).flow.js
 FLOWAUX=$(patsubst %.js,%.flow.js,$(AUXTARGETS))
 AUXSCPTS=xlsxworker.js
-FLOWTGTS=$(TARGET) $(AUXTARGETS) $(AUXSCPTS)
+FLOWTGTS=$(TARGET) $(AUXTARGETS) $(AUXSCPTS) $(MINITGT)
 UGLIFYOPTS=--support-ie8 -m
-CLOSURE=/usr/local/lib/node_modules/google-closure-compiler/compiler.jar
+# CLOSURE=/usr/local/lib/node_modules/google-closure-compiler/compiler.jar
 
 ## Main Targets
 
 .PHONY: all
-all: $(TARGET) $(AUXTARGETS) $(AUXSCPTS) ## Build library and auxiliary scripts
+all: $(TARGET) $(AUXTARGETS) $(AUXSCPTS) $(MINITGT) ## Build library and auxiliary scripts
 
 $(FLOWTGTS): %.js : %.flow.js
 	node -e 'process.stdout.write(require("fs").readFileSync("$<","utf8").replace(/^[ \t]*\/\*[:#][^*]*\*\/\s*(\n)?/gm,"").replace(/\/\*[:#][^*]*\*\//gm,""))' > $@
 
 $(FLOWTARGET): $(DEPS)
+	cat $^ | tr -d '\15\32' > $@
+
+$(MINIFLOW): $(MINIDEPS)
 	cat $^ | tr -d '\15\32' > $@
 
 bits/01_version.js: package.json
@@ -46,7 +53,7 @@ clean-data:
 init: ## Initial setup for development
 	git submodule init
 	git submodule update
-	git submodule foreach git pull origin master
+	#git submodule foreach git pull origin master
 	git submodule foreach make
 	mkdir -p tmp
 
@@ -62,7 +69,9 @@ dist: dist-deps $(TARGET) bower.json ## Prepare JS files for distribution
 	uglifyjs $(DISTHDR) $(REQS) dist/$(TARGET) $(UGLIFYOPTS) -o dist/$(LIB).core.min.js --source-map dist/$(LIB).core.min.map --preamble "$$(head -n 1 bits/00_header.js)"
 	misc/strip_sourcemap.sh dist/$(LIB).core.min.js
 	uglifyjs $(DISTHDR) $(REQS) $(ADDONS) dist/$(TARGET) $(AUXTARGETS) $(UGLIFYOPTS) -o dist/$(LIB).full.min.js --source-map dist/$(LIB).full.min.map --preamble "$$(head -n 1 bits/00_header.js)"
+	uglifyjs $(DISTHDR) $(MINITGT) $(UGLIFYOPTS) -o dist/$(LIB).mini.min.js --source-map dist/$(LIB).mini.min.map --preamble "$$(head -n 1 bits/00_header.js)"
 	misc/strip_sourcemap.sh dist/$(LIB).full.min.js
+	misc/strip_sourcemap.sh dist/$(LIB).mini.min.js
 	cat <(head -n 1 bits/00_header.js) shim.js $(DISTHDR) $(REQS) dist/$(TARGET) > dist/$(LIB).extendscript.js
 
 .PHONY: dist-deps
@@ -74,7 +83,7 @@ dist-deps: ## Copy dependencies for distribution
 .PHONY: aux
 aux: $(AUXTARGETS)
 
-BYTEFILE=dist/xlsx.min.js dist/xlsx.{core,full}.min.js dist/xlsx.extendscript.js
+BYTEFILE=dist/xlsx.min.js dist/xlsx.{core,full,mini}.min.js dist/xlsx.extendscript.js
 .PHONY: bytes
 bytes: ## Display minified and gzipped file sizes
 	for i in $(BYTEFILE); do printj "%-30s %7d %10d" $$i $$(wc -c < $$i) $$(gzip --best --stdout $$i | wc -c); done
@@ -168,31 +177,31 @@ demo-systemjs: ## Run systemjs demo build
 ## Code Checking
 
 .PHONY: fullint
-fullint: lint old-lint tslint flow mdlint ## Run all checks
+fullint: lint mdlint ## Run all checks (removed: old-lint, tslint, flow)
 
 .PHONY: lint
 lint: $(TARGET) $(AUXTARGETS) ## Run eslint checks
-	@eslint --ext .js,.njs,.json,.html,.htm $(TARGET) $(AUXTARGETS) $(CMDS) $(HTMLLINT) package.json bower.json
-	if [ -e $(CLOSURE) ]; then java -jar $(CLOSURE) $(REQS) $(FLOWTARGET) --jscomp_warning=reportUnknownTypes >/dev/null; fi
+	@./node_modules/.bin/eslint --ext .js,.njs,.json,.html,.htm $(TARGET) $(AUXTARGETS) $(CMDS) $(HTMLLINT) package.json bower.json
+	if [ -n "$(CLOSURE-)" ] && [ -e "${CLOSURE}" ]; then java -jar $(CLOSURE) $(REQS) $(FLOWTARGET) --jscomp_warning=reportUnknownTypes >/dev/null; fi
 
 .PHONY: old-lint
 old-lint: $(TARGET) $(AUXTARGETS) ## Run jshint and jscs checks
-	@jshint --show-non-errors $(TARGET) $(AUXTARGETS)
-	@jshint --show-non-errors $(CMDS)
-	@jshint --show-non-errors package.json bower.json test.js
-	@jshint --show-non-errors --extract=always $(HTMLLINT)
-	@jscs $(TARGET) $(AUXTARGETS) test.js
+	@./node_modules/.bin/jshint --show-non-errors $(TARGET) $(AUXTARGETS)
+	@./node_modules/.bin/jshint --show-non-errors $(CMDS)
+	@./node_modules/.bin/jshint --show-non-errors package.json bower.json test.js
+	@./node_modules/.bin/jshint --show-non-errors --extract=always $(HTMLLINT)
+	@./node_modules/.bin/jscs $(TARGET) $(AUXTARGETS) test.js
 	if [ -e $(CLOSURE) ]; then java -jar $(CLOSURE) $(REQS) $(FLOWTARGET) --jscomp_warning=reportUnknownTypes >/dev/null; fi
 
 .PHONY: tslint
 tslint: $(TARGET) ## Run typescript checks
 	#@npm install dtslint typescript
 	#@npm run-script dtslint
-	dtslint types
+	./node_modules/.bin/dtslint types
 
 .PHONY: flow
 flow: lint ## Run flow checker
-	@flow check --all --show-all-errors --include-warnings
+	@./node_modules/.bin/flow check --all --show-all-errors --include-warnings
 
 .PHONY: cov
 cov: misc/coverage.html ## Run coverage test
@@ -228,8 +237,8 @@ DEMOMDS=$(sort $(wildcard demos/*/README.md))
 MDLINT=$(DEMOMDS) $(READEPS) demos/README.md
 .PHONY: mdlint
 mdlint: $(MDLINT) ## Check markdown documents
-	alex $^
-	mdspell -a -n -x -r --en-us $^
+	./node_modules/.bin/alex $^
+	./node_modules/.bin/mdspell -a -n -x -r --en-us $^
 
 .PHONY: help
 help:

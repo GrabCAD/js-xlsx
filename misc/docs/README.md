@@ -19,9 +19,7 @@ enhancements, additional features like styling, and dedicated support.
 
 [**Source Code**](http://git.io/xlsx)
 
-[**Issues and Bug Reports**](https://github.com/sheetjs/js-xlsx/issues)
-
-[**Other General Support Issues**](https://discourse.sheetjs.com)
+[**Issues and Bug Reports**](https://github.com/sheetjs/sheetjs/issues)
 
 [**File format support for known spreadsheet data formats:**](#file-formats)
 
@@ -31,17 +29,16 @@ enhancements, additional features like styling, and dedicated support.
 ![graph legend](legend.png)
 
 
-[**Browser Test**](http://oss.sheetjs.com/js-xlsx/tests/)
+[**Browser Test**](http://oss.sheetjs.com/sheetjs/tests/)
 
 [![Build Status](https://saucelabs.com/browser-matrix/sheetjs.svg)](https://saucelabs.com/u/sheetjs)
 
-[![Build Status](https://travis-ci.org/SheetJS/js-xlsx.svg?branch=master)](https://travis-ci.org/SheetJS/js-xlsx)
-[![Build Status](https://semaphoreci.com/api/v1/sheetjs/js-xlsx/branches/master/shields_badge.svg)](https://semaphoreci.com/sheetjs/js-xlsx)
-[![Coverage Status](http://img.shields.io/coveralls/SheetJS/js-xlsx/master.svg)](https://coveralls.io/r/SheetJS/js-xlsx?branch=master)
-[![Dependencies Status](https://david-dm.org/sheetjs/js-xlsx/status.svg)](https://david-dm.org/sheetjs/js-xlsx)
+[![Build Status](https://travis-ci.org/SheetJS/sheetjs.svg?branch=master)](https://travis-ci.org/SheetJS/sheetjs)
+[![Build Status](https://semaphoreci.com/api/v1/sheetjs/sheetjs/branches/master/shields_badge.svg)](https://semaphoreci.com/sheetjs/sheetjs)
+[![Coverage Status](http://img.shields.io/coveralls/SheetJS/sheetjs/master.svg)](https://coveralls.io/r/SheetJS/sheetjs?branch=master)
+[![Dependencies Status](https://david-dm.org/sheetjs/sheetjs/status.svg)](https://david-dm.org/sheetjs/sheetjs)
 [![npm Downloads](https://img.shields.io/npm/dt/xlsx.svg)](https://npmjs.org/package/xlsx)
-[![ghit.me](https://ghit.me/badge.svg?repo=sheetjs/js-xlsx)](https://ghit.me/repo/sheetjs/js-xlsx)
-[![Analytics](https://ga-beacon.appspot.com/UA-36810333-1/SheetJS/js-xlsx?pixel)](https://github.com/SheetJS/js-xlsx)
+[![Analytics](https://ga-beacon.appspot.com/UA-36810333-1/SheetJS/sheetjs?pixel)](https://github.com/SheetJS/sheetjs)
 
 ## Table of Contents
 
@@ -209,9 +206,12 @@ The [`demos` directory](demos/) includes sample projects for:
 - [`Adobe ExtendScript`](demos/extendscript/)
 - [`Headless Browsers`](demos/headless/)
 - [`canvas-datagrid`](demos/datagrid/)
+- [`x-spreadsheet`](demos/xspreadsheet/)
 - [`Swift JSC and other engines`](demos/altjs/)
 - [`"serverless" functions`](demos/function/)
 - [`internet explorer`](demos/oldie/)
+
+Other examples are included in the [showcase](demos/showcase/).
 
 ### Optional Modules
 
@@ -229,6 +229,8 @@ be included directly:
 An appropriate version for each dependency is included in the dist/ directory.
 
 The complete single-file version is generated at `dist/xlsx.full.min.js`
+
+A slimmer build with XLSX / HTML support is generated at `dist/xlsx.mini.min.js`
 
 Webpack and Browserify builds include optional modules by default.  Webpack can
 be configured to remove support with `resolve.alias`:
@@ -270,8 +272,8 @@ Excel 2007, nothing outside of SheetJS or Excel supported the format.
 To promote a format-agnostic view, js-xlsx starts from a pure-JS representation
 that we call the ["Common Spreadsheet Format"](#common-spreadsheet-format).
 Emphasizing a uniform object representation enables new features like format
-conversion (reading an XLSX template and saving as XLS) and circumvents the
-"class trap".  By abstracting the complexities of the various formats, tools
+conversion (reading an XLSX template and saving as XLS) and circumvents the mess
+of classes.  By abstracting the complexities of the various formats, tools
 need not worry about the specific file type!
 
 A simple object representation combined with careful coding practices enables
@@ -384,24 +386,20 @@ req.send();
 
 
 
-Drag-and-drop uses the HTML5 `FileReader` API, loading the data with
-`readAsBinaryString` or `readAsArrayBuffer`.  Since not all browsers support the
-full `FileReader` API, dynamic feature tests are highly recommended.
+Drag-and-drop uses the HTML5 `FileReader` API.
 
 ```js
-var rABS = true; // true: readAsBinaryString ; false: readAsArrayBuffer
 function handleDrop(e) {
   e.stopPropagation(); e.preventDefault();
   var files = e.dataTransfer.files, f = files[0];
   var reader = new FileReader();
   reader.onload = function(e) {
-    var data = e.target.result;
-    if(!rABS) data = new Uint8Array(data);
-    var workbook = XLSX.read(data, {type: rABS ? 'binary' : 'array'});
+    var data = new Uint8Array(e.target.result);
+    var workbook = XLSX.read(data, {type: 'array'});
 
     /* DO SOMETHING WITH workbook HERE */
   };
-  if(rABS) reader.readAsBinaryString(f); else reader.readAsArrayBuffer(f);
+  reader.readAsArrayBuffer(f);
 }
 drop_dom_element.addEventListener('drop', handleDrop, false);
 ```
@@ -412,18 +410,16 @@ Data from file input elements can be processed using the same `FileReader` API
 as in the drag-and-drop example:
 
 ```js
-var rABS = true; // true: readAsBinaryString ; false: readAsArrayBuffer
 function handleFile(e) {
   var files = e.target.files, f = files[0];
   var reader = new FileReader();
   reader.onload = function(e) {
-    var data = e.target.result;
-    if(!rABS) data = new Uint8Array(data);
-    var workbook = XLSX.read(data, {type: rABS ? 'binary' : 'array'});
+    var data = new Uint8Array(e.target.result);
+    var workbook = XLSX.read(data, {type: 'array'});
 
     /* DO SOMETHING WITH workbook HERE */
   };
-  if(rABS) reader.readAsBinaryString(f); else reader.readAsArrayBuffer(f);
+  reader.readAsArrayBuffer(f);
 }
 input_dom_element.addEventListener('change', handleFile, false);
 ```
@@ -544,7 +540,7 @@ This example uses [`XLSX.utils.aoa_to_sheet`](#array-of-arrays-input) to make a
 sheet and `XLSX.utils.book_append_sheet` to append the sheet to the workbook:
 
 ```js
-var new_ws_name = "SheetJS";
+var ws_name = "SheetJS";
 
 /* make worksheet */
 var ws_data = [
@@ -1003,6 +999,14 @@ In addition to the base sheet keys, worksheets also add:
   the worksheet.  Plain text formats do not support merge cells.  CSV export
   will write all cells in the merge range if they exist, so be sure that only
   the first cell (upper-left) in the range is set.
+
+- `ws['!outline']`: configure how outlines should behave.  Options default to
+  the default settings in Excel 2019:
+
+| key       | Excel feature                                 | default |
+|:----------|:----------------------------------------------|:--------|
+| `above`   | Uncheck "Summary rows below detail"           | `false` |
+| `left`    | Uncheck "Summary rows to the right of detail" | `false` |
 
 - `ws['!protect']`: object of write sheet protection properties.  The `password`
   key specifies the password for formats that support password-protected sheets
@@ -1543,6 +1547,9 @@ The exported `read` and `readFile` functions accept an options argument:
 |`bookVBA`    | false   | If true, copy VBA blob to `vbaraw` field **          |
 |`password`   | ""      | If defined and file is encrypted, use password **    |
 |`WTF`        | false   | If true, throw errors on unexpected file features ** |
+|`sheets`     |         | If specified, only parse specified sheets **         |
+|`PRN`        | false   | If true, allow parsing of PRN files **               |
+|`xlfn`       | false   | If true, preserve `_xlfn.` prefixes in formulae **   |
 
 - Even if `cellNF` is false, formatted text will be generated and saved to `.w`
 - In some cases, sheets may be parsed even if `bookSheets` is false.
@@ -1556,17 +1563,24 @@ The exported `read` and `readFile` functions accept an options argument:
     * `cfb` object for formats using CFB containers
 - `sheetRows-1` rows will be generated when looking at the JSON object output
   (since the header row is counted as a row when parsing the data)
+- By default all worksheets are parsed.  `sheets` restricts based on input type:
+    * number: zero-based index of worksheet to parse (`0` is first worksheet)
+    * string: name of worksheet to parse (case insensitive)
+    * array of numbers and strings to select multiple worksheets.
 - `bookVBA` merely exposes the raw VBA CFB object.  It does not parse the data.
   XLSM and XLSB store the VBA CFB object in `xl/vbaProject.bin`. BIFF8 XLS mixes
   the VBA entries alongside the core Workbook entry, so the library generates a
   new XLSB-compatible blob from the XLS CFB container.
 - `codepage` is applied to BIFF2 - BIFF5 files without `CodePage` records and to
   CSV files without BOM in `type:"binary"`.  BIFF8 XLS always defaults to 1200.
+- `PRN` affects parsing of text files without a common delimiter character.
 - Currently only XOR encryption is supported.  Unsupported error will be thrown
   for files employing other encryption methods.
+- Newer Excel functions are serialized with the `_xlfn.` prefix, hidden from the
+  user. SheetJS will strip `_xlfn.` normally. The `xlfn` option preserves them.
 - WTF is mainly for development.  By default, the parser will suppress read
   errors on single worksheets, allowing you to read from the worksheets that do
-  parse properly. Setting `WTF:1` forces those errors to be thrown.
+  parse properly. Setting `WTF:true` forces those errors to be thrown.
 
 ### Input Type
 
@@ -1827,7 +1841,7 @@ default column order is determined by the first appearance of the field using
 |`skipHeader` |  false   | If true, do not include header row in output        |
 
 
-The original sheet cannot be reproduced in the obvious way since JS object keys
+The original sheet cannot be reproduced using plain objects since JS object keys
 must be unique. After replacing the second `e` and `S` with `e_1` and `S_1`:
 
 ```js
@@ -1948,6 +1962,53 @@ var wb = XLSX.utils.table_to_book(tbl);
 
 Note: `XLSX.read` can handle HTML represented as strings.
 
+
+`XLSX.utils.sheet_add_dom` takes a table DOM element and updates an existing
+worksheet object.  It follows the same process as `table_to_sheet` and accepts
+an options argument:
+
+| Option Name |  Default | Description                                         |
+| :---------- | :------: | :-------------------------------------------------- |
+|`raw`        |          | If true, every cell will hold raw strings           |
+|`dateNF`     |  FMT 14  | Use specified date format in string output          |
+|`cellDates`  |  false   | Store dates as type `d` (default is `n`)            |
+|`sheetRows`  |    0     | If >0, read the first `sheetRows` rows of the table |
+|`display`    |  false   | If true, hidden rows and cells will not be parsed   |
+
+`origin` is expected to be one of:
+
+| `origin`         | Description                                               |
+| :--------------- | :-------------------------------------------------------- |
+| (cell object)    | Use specified cell (cell object)                          |
+| (string)         | Use specified cell (A1-style cell)                        |
+| (number >= 0)    | Start from the first column at specified row (0-indexed)  |
+| -1               | Append to bottom of worksheet starting on first column    |
+| (default)        | Start from cell A1                                        |
+
+
+
+A small helper function can create gap rows between tables:
+
+```js
+function create_gap_rows(ws, nrows) {
+  var ref = XLSX.utils.decode_range(ws["!ref"]);       // get original range
+  ref.e.r += nrows;                                    // add to ending row
+  ws["!ref"] = XLSX.utils.encode_range(ref);           // reassign row
+}
+
+/* first table */
+var ws = XLSX.utils.table_to_sheet(document.getElementById('table1'));
+create_gap_rows(ws, 1); // one row gap after first table
+
+/* second table */
+XLSX.utils.sheet_add_dom(ws, document.getElementById('table2'), {origin: -1});
+create_gap_rows(ws, 3); // three rows gap after second table
+
+/* third table */
+XLSX.utils.sheet_add_dom(ws, document.getElementById('table3'), {origin: -1});
+```
+
+
 ### Formulae Output
 
 `XLSX.utils.sheet_to_formulae` generates an array of commands that represent
@@ -1969,17 +2030,20 @@ For the example sheet:
 As an alternative to the `writeFile` CSV type, `XLSX.utils.sheet_to_csv` also
 produces CSV output.  The function takes an options argument:
 
-| Option Name |  Default | Description                                         |
-| :---------- | :------: | :-------------------------------------------------- |
-|`FS`         |  `","`   | "Field Separator"  delimiter between fields         |
-|`RS`         |  `"\n"`  | "Record Separator" delimiter between rows           |
-|`dateNF`     |  FMT 14  | Use specified date format in string output          |
-|`strip`      |  false   | Remove trailing field separators in each record **  |
-|`blankrows`  |  true    | Include blank lines in the CSV output               |
-|`skipHidden` |  false   | Skips hidden rows/columns in the CSV output         |
+| Option Name  |  Default | Description                                        |
+| :----------- | :------: | :------------------------------------------------- |
+|`FS`          |  `","`   | "Field Separator"  delimiter between fields        |
+|`RS`          |  `"\n"`  | "Record Separator" delimiter between rows          |
+|`dateNF`      |  FMT 14  | Use specified date format in string output         |
+|`strip`       |  false   | Remove trailing field separators in each record ** |
+|`blankrows`   |  true    | Include blank lines in the CSV output              |
+|`skipHidden`  |  false   | Skips hidden rows/columns in the CSV output        |
+|`forceQuotes` |  false   | Force quotes around fields                         |
 
 - `strip` will remove trailing commas from each line under default `FS/RS`
 - `blankrows` must be set to `false` to skip blank lines.
+- Fields containing the record or field separator will automatically be wrapped
+  in double quotes; `forceQuotes` forces all cells to be wrapped in quotes.
 
 
 For the example sheet:
